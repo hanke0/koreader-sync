@@ -221,6 +221,7 @@ func (d *Database) UpdateProgress(ctx context.Context, p *Progress) error {
 var globalDB *Database
 
 func writeJSONError(w http.ResponseWriter, r *http.Request, err error) {
+	log.Printf("Error: %s %s %v", r.Method, r.URL.Path, err)
 	e, ok := err.(*Error)
 	if !ok {
 		e = &Error{
