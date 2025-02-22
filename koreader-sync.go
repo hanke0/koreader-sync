@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -61,23 +62,24 @@ type User struct {
 }
 
 type Progress struct {
-	User       int    `json:"-"`
-	Document   string `json:"document,omitempty"`
-	Percentage int    `json:"percentage,omitempty"`
-	Progress   string `json:"progress,omitempty"`
-	Device     string `json:"device,omitempty"`
-	DeviceID   string `json:"device_id,omitempty"`
-	Timestamp  int64  `json:"timestamp,omitempty"`
+	User       int     `json:"-"`
+	Document   string  `json:"document,omitempty"`
+	Percentage float64 `json:"percentage,omitempty"`
+	Progress   string  `json:"progress,omitempty"`
+	Device     string  `json:"device,omitempty"`
+	DeviceID   string  `json:"device_id,omitempty"`
+	Timestamp  int64   `json:"timestamp,omitempty"`
 }
 
 type Error struct {
 	HTTPCode int    `json:"-"`
 	Code     int    `json:"code"`
 	Message  string `json:"message"`
+	Stack    string `json:"stack"`
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("http:%d, code:%d, message:%s", e.HTTPCode, e.Code, e.Message)
+	return fmt.Sprintf("http:%d, code:%d, message:%s %s", e.HTTPCode, e.Code, e.Message, e.Stack)
 }
 
 var (
@@ -114,7 +116,7 @@ CREATE TABLE IF NOT EXISTS users (
 	CREATE TABLE IF NOT EXISTS progress (
 		user int,
 		document text,
-		percentage int,
+		percentage double,
 		progress text,
 		device text,
 		device_id text,
@@ -245,12 +247,24 @@ func auth(w http.ResponseWriter, r *http.Request) int {
 }
 
 func decodeBody(w http.ResponseWriter, r *http.Request, v interface{}) bool {
-	err := json.NewDecoder(r.Body).Decode(v)
+	rd := io.LimitReader(r.Body, 1024*1024) // 1MB
+	body, err := io.ReadAll(rd)
 	if err != nil {
 		writeJSONError(w, r, &Error{
 			HTTPCode: http.StatusBadRequest,
 			Code:     2003,
 			Message:  "Bad request",
+			Stack:    err.Error(),
+		})
+		return false
+	}
+	err = json.Unmarshal(body, v)
+	if err != nil {
+		writeJSONError(w, r, &Error{
+			HTTPCode: http.StatusBadRequest,
+			Code:     2003,
+			Message:  "Bad request",
+			Stack:    string(body) + err.Error(),
 		})
 		return false
 	}
