@@ -7,22 +7,25 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
 
 func main() {
-	addr := "127.0.0.0:9200"
-	if len(os.Args) > 1 {
-		addr = os.Args[1]
-	}
-	db, err := Open("koreader-sync.sqlite")
+	var (
+		addr   = "127.0.0.1:9200"
+		dbfile = "koreader-sync.sqlite"
+	)
+	flag.StringVar(&addr, "addr", addr, "listen address")
+	flag.StringVar(&dbfile, "db", dbfile, "database file")
+	flag.Parse()
+	db, err := Open(dbfile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,7 +61,7 @@ type User struct {
 }
 
 type Progress struct {
-	User       int    `json:"user,omitempty"`
+	User       int    `json:"-"`
 	Document   string `json:"document,omitempty"`
 	Percentage int    `json:"percentage,omitempty"`
 	Progress   string `json:"progress,omitempty"`
@@ -150,10 +153,6 @@ func (d *Database) Auth(ctx context.Context, name, password string) (int, error)
 	b := h.Sum([]byte(password))
 	p := base64.StdEncoding.EncodeToString(b)
 	if p != u.Password {
-		return 0, ErrNoUser
-	}
-
-	if u.Password != password {
 		return 0, ErrIncorrectPassword
 	}
 	return u.ID, nil
@@ -208,8 +207,7 @@ func (d *Database) UpdateProgress(ctx context.Context, p *Progress) error {
 	_, err := d.DB.ExecContext(ctx, `
 	REPLACE INTO progress
 	(user, document, percentage, progress, device, device_id, timestamp)
-	VALUES (?, ?, ?, ?, ?, ?, ?)
-	WHERE user = ? AND document = ?`,
+	VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		p.User, p.Document, p.Percentage, p.Progress, p.Device, p.DeviceID, p.Timestamp,
 		p.User, p.Document)
 	if err != nil {
