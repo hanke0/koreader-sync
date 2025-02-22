@@ -240,6 +240,7 @@ func auth(w http.ResponseWriter, r *http.Request) int {
 	key := r.Header.Get("X-Auth-Key")
 	id, err := globalDB.Auth(r.Context(), user, key)
 	if err != nil {
+		log.Printf("Auth error: %s %s %v, headers=%+v", r.Method, r.URL.Path, err, r.Header)
 		writeJSONError(w, r, err)
 		return 0
 	}
@@ -323,7 +324,7 @@ func routeSyncProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	enc.Encode(map[string]interface{}{
