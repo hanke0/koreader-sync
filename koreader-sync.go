@@ -37,6 +37,8 @@ func main() {
 	}
 }
 
+var GetNow = time.Now
+
 type Database struct {
 	*sql.DB
 }
@@ -127,6 +129,21 @@ CREATE TABLE IF NOT EXISTS users (
 	if err != nil {
 		return err
 	}
+	_, err = d.Exec(`
+	CREATE TABLE IF NOT EXISTS progress_history (
+		id INTEGER PRIMARY KEY AUTOINCREMENT ,
+		user int,
+		document text,
+		percentage double,
+		progress text,
+		device text,
+		device_id text,
+		timestamp int
+	)
+		`)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -211,11 +228,17 @@ func (d *Database) UpdateProgress(ctx context.Context, p *Progress) error {
 	(user, document, percentage, progress, device, device_id, timestamp)
 	VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		p.User, p.Document, p.Percentage, p.Progress, p.Device, p.DeviceID, p.Timestamp,
-		p.User, p.Document)
+	)
 	if err != nil {
 		return err
 	}
-	return nil
+	_, err = d.DB.ExecContext(ctx, `
+	INSERT INTO progress_history
+	(user, document, percentage, progress, device, device_id, timestamp)
+	VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		p.User, p.Document, p.Percentage, p.Progress, p.Device, p.DeviceID, p.Timestamp,
+	)
+	return err
 }
 
 var globalDB *Database
@@ -317,7 +340,7 @@ func routeSyncProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.User = uid
-	p.Timestamp = time.Now().Unix()
+	p.Timestamp = GetNow().Unix()
 	err := globalDB.UpdateProgress(r.Context(), &p)
 	if err != nil {
 		writeJSONError(w, r, err)

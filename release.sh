@@ -2,6 +2,8 @@
 
 set -Eeo pipefail
 
+go test ./...
+
 release_platform() {
     while [ $# -gt 0 ]; do
         name="./dist/koreader-sync-$1-$2"
